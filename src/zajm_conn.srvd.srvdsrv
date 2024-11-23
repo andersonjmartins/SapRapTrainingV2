@@ -1,0 +1,4 @@
+@EndUserText.label: 'Service definition for Z_C_AJM_CONN'
+define service ZAJM_CONN {
+  expose Z_C_AJM_CONN as Connection;
+}
