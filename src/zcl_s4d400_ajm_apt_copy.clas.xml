@@ -3,16 +3,13 @@
  <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
   <asx:values>
    <VSEOCLASS>
-    <CLSNAME>ZBP_AJM_CONN</CLSNAME>
+    <CLSNAME>ZCL_S4D400_AJM_APT_COPY</CLSNAME>
     <LANGU>E</LANGU>
-    <DESCRIPT>##GENERATED Behavior implementation</DESCRIPT>
-    <CATEGORY>06</CATEGORY>
+    <DESCRIPT>Populate ZS4D400 PPET</DESCRIPT>
     <STATE>1</STATE>
     <CLSCCINCL>X</CLSCCINCL>
     <FIXPT>X</FIXPT>
     <UNICODE>X</UNICODE>
-    <CLSDEFINT>Z_R_AJM_CONN</CLSDEFINT>
-    <WITH_UNIT_TESTS>X</WITH_UNIT_TESTS>
    </VSEOCLASS>
   </asx:values>
  </asx:abap>

@@ -1,0 +1,19 @@
+projection implementation in class ZBP_C_S4D400_AJM_RAP unique;
+strict ( 2 );
+use draft;
+use side effects;
+
+define behavior for ZC_S4D400_AJM_RAP alias ZConnection
+use etag
+
+{
+  use create;
+  use update;
+  use delete;
+
+  use action Edit;
+  use action Activate;
+  use action Discard;
+  use action Resume;
+  use action Prepare;
+}

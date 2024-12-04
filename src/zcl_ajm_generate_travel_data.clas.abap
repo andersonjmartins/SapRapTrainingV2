@@ -28,7 +28,7 @@ CLASS zcl_ajm_generate_travel_data IMPLEMENTATION.
     ).
 
 *   delete existing entries in the database table
-    DELETE FROM ztravel_xxx.
+    DELETE FROM zajm_travel_001.
 
 *   insert the new table entries
     INSERT zajm_travel_001 FROM TABLE @itab.

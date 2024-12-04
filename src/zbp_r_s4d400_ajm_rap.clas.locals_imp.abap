@@ -1,49 +1,49 @@
-CLASS lhc_connection DEFINITION INHERITING FROM cl_abap_behavior_handler.
+CLASS lhc_zr_s4d400_ajm_rap DEFINITION INHERITING FROM cl_abap_behavior_handler.
   PRIVATE SECTION.
-    TYPES: ty_helper_type TYPE STRUCTURE FOR READ RESULT z_r_ajm_conn.
-    METHODS exist_semantic_key
-      IMPORTING
-        i_connection    TYPE ty_helper_type
-      RETURNING
-        VALUE(r_result) TYPE zsyssuuid_x16_t_ids.
-    METHODS exist_semantic_key2
-      IMPORTING
-        carrierid      TYPE /dmo/carrier_id
-        connectionid   TYPE /dmo/connection_id
-        uuid           TYPE sysuuid_x16
-      EXPORTING
-        et_result      TYPE zsyssuuid_x16_t_ids
-      RETURNING
-        VALUE(r_exist) TYPE char1.
     METHODS:
       get_global_authorizations FOR GLOBAL AUTHORIZATION
         IMPORTING
-        REQUEST requested_authorizations FOR Connection
+        REQUEST requested_authorizations FOR ZConnection
         RESULT result,
       CheckSemanticKey FOR VALIDATE ON SAVE
-        IMPORTING keys FOR Connection~CheckSemanticKey,
+        IMPORTING keys FOR ZConnection~CheckSemanticKey,
       CheckCerrierID FOR VALIDATE ON SAVE
-        IMPORTING keys FOR Connection~CheckCerrierID,
+        IMPORTING keys FOR ZConnection~CheckCerrierID,
       CheckOriginDestination FOR VALIDATE ON SAVE
-        IMPORTING keys FOR Connection~CheckOriginDestination,
+        IMPORTING keys FOR ZConnection~CheckOriginDestination,
 *      GetCities FOR DETERMINE ON SAVE
-*        IMPORTING keys FOR Connection~GetCities,
+*        IMPORTING keys FOR ZConnection~GetCities,
       GetCities1 FOR DETERMINE ON MODIFY
-        IMPORTING keys FOR Connection~GetCities1.
+        IMPORTING keys FOR ZConnection~GetCities1.
 ENDCLASS.
 
-CLASS lhc_connection IMPLEMENTATION.
-  METHOD get_global_authorizations ##NEEDED.
+CLASS lhc_zr_s4d400_ajm_rap IMPLEMENTATION.
+
+  METHOD get_global_authorizations.
   ENDMETHOD.
+
   METHOD CheckSemanticKey.
+
+
+*    DATA read_keys   TYPE TABLE FOR READ IMPORT zr_s4d400_ajm_rap.
+*    DATA connections TYPE TABLE FOR READ RESULT zr_s4d400_ajm_rap.
+*
+*    read_keys = CORRESPONDING #( keys ).
+*
+*    READ ENTITIES OF zr_s4d400_ajm_rap IN LOCAL MODE
+*           ENTITY ZConnection
+*           FIELDS ( uuid CarrierID ConnectionID )
+*             WITH read_keys
+*           RESULT connections.
+
 
     "Define a validation CheckSemanticKey to check that a particular flight number has not already been used.
 
     "client data
     "Use the EML READ ENTITIES statement to read the data that the user entered. Ensure that the fields CarrierID,
     "   and ConnectionID are read. Use an inline declaration for the result set.
-    READ ENTITIES OF z_r_ajm_conn IN LOCAL MODE
-           ENTITY Connection
+    READ ENTITIES OF zr_s4d400_ajm_rap IN LOCAL MODE
+           ENTITY ZConnection
            FIELDS ( CarrierID ConnectionID )
              WITH CORRESPONDING #( keys )
            RESULT DATA(connections).
@@ -66,33 +66,27 @@ CLASS lhc_connection IMPLEMENTATION.
 
     "In a loop over the data that you just read, select the UUIDs of all other data sets with the same combination of airline ID and flight number
     LOOP AT connections INTO DATA(connection).
+      "standard table
+      SELECT FROM zaajm_conn
+             FIELDS uuid
+              WHERE carrier_id    = @connection-CarrierID
+                AND connection_id = @connection-ConnectionID
+                AND uuid          <> @connection-uuid
+        UNION
+        "draft table
+        SELECT FROM zdajm_conn
+             FIELDS uuid
+              WHERE carrierid     = @connection-CarrierID
+                AND connectionid  = @connection-ConnectionID
+                AND uuid          <> @connection-uuid
 
-      "DATA(check_result) = exist_semantic_key( connection ).
-      DATA(check_exist) = exist_semantic_key2(
-carrierid = connection-carrierid
-connectionid = connection-connectionid
-uuid = connection-uuid ).
-*
-*      "standard table
-*      SELECT FROM zaajm_conn
-*             FIELDS uuid
-*              WHERE carrier_id    = @connection-CarrierID
-*                AND connection_id = @connection-ConnectionID
-*                AND uuid          <> @connection-uuid
-*        UNION
-*        "draft table
-*        SELECT FROM zdajm_conn
-*             FIELDS uuid
-*              WHERE carrierid     = @connection-CarrierID
-*                AND connectionid  = @connection-ConnectionID
-*                AND uuid          <> @connection-uuid
-*      into table @DATA(check_result).
+         INTO TABLE @DATA(check_result).
       "INTO TABLE @check_result.
 
       "key already exists ?
       "If the internal table check_result contains any records create a new message with message classZS4D400,
       "message number 001 and severity ms-error. Pass connection-CarrierID to parameter v1 and connection-ConnectionID to parameter v2
-      IF check_exist IS NOT INITIAL.
+      IF check_result IS NOT INITIAL.
         DATA(message) = me->new_message(
                           id       = 'ZS4D400'
                           number   = '001'
@@ -102,32 +96,33 @@ uuid = connection-uuid ).
                         ).
 
         "report message to return odata message to screen and to mark the field with error
-        DATA reported_record LIKE LINE OF reported-connection.
+        DATA reported_record LIKE LINE OF reported-zconnection.
 
-        reported_record-%tky 				  = connection-%tky.
-        reported_record-%msg    			  = message.
+        reported_record-%tky                  = connection-%tky.
+        reported_record-%msg                  = message.
         reported_record-%element-CarrierID    = if_abap_behv=>mk-on.
         reported_record-%element-ConnectionID = if_abap_behv=>mk-on.
 
-        APPEND reported_record TO reported-connection.
-        	
+        APPEND reported_record TO reported-zconnection.
+
 
         "failed record to avoid save incorrect data
-        DATA failed_record LIKE LINE OF failed-connection.
+        DATA failed_record LIKE LINE OF failed-zconnection.
 
         failed_record-%tky = connection-%tky.
-        APPEND failed_record TO failed-connection.
+        APPEND failed_record TO failed-zconnection.
 
       ENDIF.
     ENDLOOP.
+
 
   ENDMETHOD.
 
   METHOD CheckCerrierID.
 
     "Use the EML READ ENTITIES statement to read the data that the user entered. Ensure that the field CARRID is read.
-    READ ENTITIES OF z_r_ajm_conn IN LOCAL MODE
-           ENTITY Connection
+    READ ENTITIES OF zr_s4d400_ajm_rap IN LOCAL MODE
+           ENTITY ZConnection
            FIELDS ( CarrierID )
              WITH CORRESPONDING #(  keys )
            RESULT DATA(connections).
@@ -141,7 +136,8 @@ uuid = connection-uuid ).
       FIELDS @abap_true
        WHERE airlineid = @connection-CarrierID
        INTO @DATA(exists).
-      "If the value of exists is abap_false, create a message object with message ID ZS4D400, number 002, severity ms-error and parameter v1 connection-CarrierID.
+      "If the value of exists is abap_false, create a message object with message ID ZS4D400, number 002, severity ms-error and
+      "parameter v1 connection-CarrierID.
       IF exists = abap_false.
         DATA(message) = me->new_message(
                             id       = 'ZS4D400'
@@ -150,18 +146,18 @@ uuid = connection-uuid ).
                             v1       = connection-CarrierID
                           ) .
 
-        DATA reported_record LIKE LINE OF reported-connection.
+        DATA reported_record LIKE LINE OF reported-zconnection.
 
         reported_record-%tky = connection-%tky.
         reported_record-%msg = message.
         reported_record-%element-carrierid = if_abap_behv=>mk-on.
 
-        APPEND reported_record TO reported-connection.
+        APPEND reported_record TO reported-zconnection.
 
-        DATA failed_record LIKE LINE OF failed-connection.
+        DATA failed_record LIKE LINE OF failed-zconnection.
 
         failed_record-%tky = connection-%tky.
-        APPEND failed_Record TO failed-connection.
+        APPEND failed_Record TO failed-zconnection.
 
       ENDIF.
     ENDLOOP.
@@ -172,8 +168,8 @@ uuid = connection-uuid ).
   METHOD CheckOriginDestination.
 
     "Define a validation CheckOriginDestination to check that the departure and arrival airports of the flight connection are different.
-    READ ENTITIES OF z_r_ajm_conn IN LOCAL MODE
-           ENTITY Connection
+    READ ENTITIES OF zr_s4d400_ajm_rap IN LOCAL MODE
+           ENTITY ZConnection
            FIELDS ( AirportFromID AirportToID )
              WITH CORRESPONDING #(  keys )
            RESULT DATA(connections).
@@ -186,19 +182,19 @@ uuid = connection-uuid ).
                           severity = ms-error
                        ).
 
-        DATA reported_record LIKE LINE OF reported-connection.
+        DATA reported_record LIKE LINE OF reported-zconnection.
 
         reported_record-%tky =  connection-%tky.
         reported_record-%msg = message.
         reported_record-%element-AirportFromID = if_abap_behv=>mk-on.
         reported_record-%element-AirportToID   = if_abap_behv=>mk-on.
 
-        APPEND reported_record TO reported-connection.
+        APPEND reported_record TO reported-zconnection.
 
-        DATA failed_record LIKE LINE OF failed-connection.
+        DATA failed_record LIKE LINE OF failed-zconnection.
 
         failed_record-%tky = connection-%tky.
-        APPEND failed_record TO failed-connection.
+        APPEND failed_record TO failed-zconnection.
 
         "CONTINUE.
       ENDIF.
@@ -223,12 +219,12 @@ uuid = connection-uuid ).
         reported_record-%msg = message.
         reported_record-%element-AirportFromID = if_abap_behv=>mk-on.
 
-        APPEND reported_record TO reported-connection.
+        APPEND reported_record TO reported-zconnection.
 
         CLEAR failed_record.
 
         failed_record-%tky = connection-%tky.
-        APPEND failed_Record TO failed-connection.
+        APPEND failed_Record TO failed-zconnection.
 
       ENDIF.
       "ENDIF.
@@ -255,12 +251,12 @@ uuid = connection-uuid ).
         reported_record-%msg = message.
         reported_record-%element-AirportToID = if_abap_behv=>mk-on.
 
-        APPEND reported_record TO reported-connection.
+        APPEND reported_record TO reported-zconnection.
 
         CLEAR failed_record.
 
         failed_record-%tky = connection-%tky.
-        APPEND failed_Record TO failed-connection.
+        APPEND failed_Record TO failed-zconnection.
 
       ENDIF.
       "ENDIF.
@@ -275,8 +271,8 @@ uuid = connection-uuid ).
 *    "Determine the Cities and Countries
 *
 *    "Read the user input using an EML READ ENTITIES statement. Read the fields AirportFromID and AirportToID.
-*    READ ENTITIES OF z_r_ajm_conn IN LOCAL MODE
-*           ENTITY Connection
+*    READ ENTITIES OF zr_s4d400_ajm_rap IN LOCAL MODE
+*           ENTITY ZConnection
 *           FIELDS ( AirportFromID AirportToID )
 *             WITH CORRESPONDING #( keys )
 *           RESULT DATA(connections).
@@ -302,13 +298,13 @@ uuid = connection-uuid ).
 *
 *    ENDLOOP.
 *
-*    DATA connections_upd TYPE TABLE FOR UPDATE z_r_ajm_conn.
+*    DATA connections_upd TYPE TABLE FOR UPDATE zr_s4d400_ajm_rap.
 *
 *    connections_upd = CORRESPONDING #( connections ).
 *
 *
-*    MODIFY ENTITIES OF z_r_ajm_conn IN LOCAL MODE
-*             ENTITY Connection
+*    MODIFY ENTITIES OF zr_s4d400_ajm_rap IN LOCAL MODE
+*             ENTITY ZConnection
 *             UPDATE
 *             FIELDS ( CityFrom CountryFrom CityTo CountryTo )
 *               WITH connections_upd
@@ -324,8 +320,8 @@ uuid = connection-uuid ).
     "Determine the Cities and Countries
 
     "Read the user input using an EML READ ENTITIES statement. Read the fields AirportFromID and AirportToID.
-    READ ENTITIES OF z_r_ajm_conn IN LOCAL MODE
-           ENTITY Connection
+    READ ENTITIES OF zr_s4d400_ajm_rap IN LOCAL MODE
+           ENTITY ZConnection
            FIELDS ( AirportFromID AirportToID )
              WITH CORRESPONDING #( keys )
            RESULT DATA(connections).
@@ -351,62 +347,19 @@ uuid = connection-uuid ).
 
     ENDLOOP.
 
-    DATA connections_upd TYPE TABLE FOR UPDATE z_r_ajm_conn.
+    DATA connections_upd TYPE TABLE FOR UPDATE zr_s4d400_ajm_rap.
 
     connections_upd = CORRESPONDING #( connections ).
 
 
-    MODIFY ENTITIES OF z_r_ajm_conn IN LOCAL MODE
-             ENTITY Connection
+    MODIFY ENTITIES OF zr_s4d400_ajm_rap IN LOCAL MODE
+             ENTITY ZConnection
              UPDATE
              FIELDS ( CityFrom CountryFrom CityTo CountryTo )
                WITH connections_upd
            REPORTED DATA(reported_records).
 
-    reported-connection = CORRESPONDING #( reported_records-connection ).
+    reported-zconnection = CORRESPONDING #( reported_records-zconnection ).
 
   ENDMETHOD.
-
-  METHOD exist_semantic_key.
-
-    "standard table
-    SELECT FROM zaajm_conn
-           FIELDS uuid
-            WHERE carrier_id    = @i_connection-CarrierID
-              AND connection_id = @i_connection-ConnectionID
-              AND uuid          <> @i_connection-uuid
-      UNION
-      "draft table
-      SELECT FROM zdajm_conn
-           FIELDS uuid
-            WHERE carrierid     = @i_connection-CarrierID
-              AND connectionid  = @i_connection-ConnectionID
-              AND uuid          <> @i_connection-uuid
-              INTO TABLE @r_result.
-
-  ENDMETHOD.
-
-
-  METHOD exist_semantic_key2.
-
-    r_exist = abap_false.
-    "standard table
-    SELECT FROM zaajm_conn
-           FIELDS uuid
-            WHERE carrier_id    = @CarrierID
-              AND connection_id = @ConnectionID
-              AND uuid          <> @uuid
-      UNION
-      "draft table
-      SELECT FROM zdajm_conn
-           FIELDS uuid
-            WHERE carrierid     = @CarrierID
-              AND connectionid  = @ConnectionID
-              AND uuid          <> @uuid
-              INTO TABLE @et_result.
-    IF et_result IS NOT INITIAL.
-      r_exist = abap_True.
-    ENDIF.
-  ENDMETHOD.
-
 ENDCLASS.
